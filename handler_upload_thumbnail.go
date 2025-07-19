@@ -1,10 +1,12 @@
 package main
 
 import (
-	"encoding/base64"
 	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/bootdotdev/learn-file-storage-s3-golang-starter/internal/auth"
@@ -50,9 +52,8 @@ func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Requ
 	defer file.Close()
 
 	mediaType := fileHeaders.Header.Get("Content-Type")
-	imageBytes, err := io.ReadAll(file)
-	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "File read failed", err)
+	if mediaType == "" {
+		respondWithError(w, http.StatusBadRequest, "Invalid content type", err)
 		return
 	}
 
@@ -66,8 +67,23 @@ func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	thumbBase64 := base64.StdEncoding.EncodeToString(imageBytes)
-	thumbURL := fmt.Sprintf("data:%v;base64,%v", mediaType, thumbBase64)
+	thumbName := fmt.Sprintf("%v.%v", videoID, strings.Split(strings.Split(mediaType, " ")[0], "/")[1])
+	thumbPath := filepath.Join(cfg.assetsRoot, thumbName)
+
+	assetsFile, err := os.Create(thumbPath)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "File creation failed", err)
+		return
+	}
+
+	_, err = io.Copy(assetsFile, file)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Failed copying the file", err)
+		return
+	}
+
+	thumbURL := fmt.Sprintf("http://localhost:%v/%v", cfg.port, thumbPath)
+
 	video.UpdatedAt = time.Now()
 	video.ThumbnailURL = &thumbURL
 
