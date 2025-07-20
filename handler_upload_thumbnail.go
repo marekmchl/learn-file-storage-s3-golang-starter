@@ -70,15 +70,14 @@ func (cfg *apiConfig) handlerUploadThumbnail(w http.ResponseWriter, r *http.Requ
 	thumbName := fmt.Sprintf("%v.%v", videoID, strings.Split(strings.Split(mediaType, " ")[0], "/")[1])
 	thumbPath := filepath.Join(cfg.assetsRoot, thumbName)
 
-	assetsFile, err := os.Create(thumbPath)
+	thumbData, err := io.ReadAll(file)
 	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "File creation failed", err)
+		respondWithError(w, http.StatusInternalServerError, "Failed reading the uploaded file", err)
 		return
 	}
 
-	_, err = io.Copy(assetsFile, file)
-	if err != nil {
-		respondWithError(w, http.StatusInternalServerError, "Failed copying the file", err)
+	if err := os.WriteFile(thumbPath, thumbData, os.ModePerm); err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Parsing of media type failed", err)
 		return
 	}
 
